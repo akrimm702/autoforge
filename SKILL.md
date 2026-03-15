@@ -1,6 +1,6 @@
 ---
 name: autoforge
-description: 'Autonomous iterative optimization for code, skills, prompts, and repositories. Top-agent orchestrates with mathematical convergence. Four modes: prompt (mental simulation), code (real execution + tests), audit (CLI testing + doc fixing), project (whole-repo optimization). Use when: user says "autoforge", "forge", "optimize skill", "improve", "run autoforge", "optimize code", "improve script", "optimize repo", "forge project", "check project", "repo audit".'
+description: 'Iterative optimization for code, skills, prompts, and repositories. Top-agent orchestrates with mathematical convergence. Four modes: prompt (mental simulation), code (sandboxed test runs), audit (CLI verification + doc alignment), project (whole-repo consistency). Use when: user says "autoforge", "forge", "optimize skill", "improve", "run autoforge", "optimize code", "improve script", "optimize repo", "forge project", "check project", "repo audit".'
 ---
 
 # AutoForge — Top-Agent Architecture
@@ -19,7 +19,7 @@ Agent (you)
 ### Sub-Agent = You
 "Sub-Agent" is a **conceptual role**, not a separate process. You (the top-agent) execute each iteration yourself: simulate/execute → evaluate → write TSV → call report.sh. The templates below describe what you do PER ITERATION — not what you send to another agent.
 
-For code execution (mode: code), use `exec` directly.
+For code mode, run tests using the `exec` tool.
 
 ### Multi-Model Setup (recommended for Deep Audits)
 
@@ -69,7 +69,7 @@ You are assigned ONE mode. **Ignore all sections for other modes.**
 | Mode | What happens | Output |
 |------|-------------|--------|
 | `prompt` | Mentally simulate skill/prompt, evaluate against evals | Improved prompt text |
-| `code` | Execute code in sandbox, measure tests | Improved code |
+| `code` | Run tests in sandbox, measure results | Improved code |
 | `audit` | Test CLI commands (read-only only!) + verify SKILL.md against reality | Improved SKILL.md |
 | `project` | Scan whole repo, cross-file analysis, fix multiple files per iteration | Improved repository |
 
@@ -104,7 +104,7 @@ printf '%s\t%s\t%s\t%s\t%s\n' "1" "Baseline" "58%" "Original version" "baseline"
 - **Tabs** in text fields → replace with spaces
 - **Newlines** in text fields → replace with ` | `
 - **Empty fields** → use hyphen `-` (never leave empty)
-- **`$` and backticks** → use `printf '%s'` or escape with `\$` (shell expansion risk!)
+- **`$` and backticks** → use `printf '%s'` or escape with `\$` (prevents unintended variable interpolation)
 - **Unicode/Emoji** allowed, count as 1 character (not bytes)
 
 ### Status rules (based on pass-rate comparison):
@@ -227,7 +227,7 @@ Best code → `results/[target]-proposed.[ext]` + report.sh `--final`
 
 > **Only read if your task contains `mode: audit`!**
 
-⚠️ **DO NOT write or execute your own code.** Only test CLI commands of the target tool (`--help` + read-only).
+⚠️ **DO NOT write your own code.** Only test CLI commands of the target tool (`--help` + read-only).
 
 ### Two Variants
 

@@ -101,19 +101,12 @@ while IFS=$'\t' read -r iter summary rate change status; do
     rate_num="0"
   fi
 
-  # Build bar — works without Python too
-  if command -v python3 &>/dev/null; then
-    bar=$(python3 -c "
-r=int('${rate_num}' or 0)
-filled=int(r/5)
-empty=20-filled
-print('█'*filled + '░'*empty)
-" 2>/dev/null || echo '░░░░░░░░░░░░░░░░░░░░')
-  else
-    filled=$((rate_num / 5))
-    empty=$((20 - filled))
-    bar=$(printf '█%.0s' $(seq 1 $filled 2>/dev/null) 2>/dev/null; printf '░%.0s' $(seq 1 $empty 2>/dev/null) 2>/dev/null)
-  fi
+  # Build progress bar (pure bash)
+  filled=$((rate_num / 5))
+  empty=$((20 - filled))
+  bar=""
+  for ((b=0; b<filled; b++)); do bar="${bar}█"; done
+  for ((b=0; b<empty; b++)); do bar="${bar}░"; done
 
   case "$status" in
     keep|improved|retained|best) icon="✅" ;;

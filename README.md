@@ -4,7 +4,7 @@
 
 ### *Stop vibing. Start converging.*
 
-**Autonomous optimization loops for AI agent skills, code, docs & entire repos.**
+**Iterative optimization loops for AI agent skills, code, docs & entire repos.**
 
 Mathematical convergence · Multi-model cross-validation · Live Unicode reporting
 
@@ -277,7 +277,7 @@ The validator doesn't see the optimizer's reasoning — just the output. This pr
 
 **Sub-Agents Documentation** — 70% → 100% in 14 iterations with multi-model validation. 6 real bugs found in upstream docs. Identified 4 categories of validator false positives.
 
-**backup.sh** — Added rsync support, validation checks, restore-test. Code mode with real execution. 3 iterations to stable, 2 more to polish.
+**backup.sh** — Added rsync support, validation checks, restore-test. Code mode with sandboxed test runs. 3 iterations to stable, 2 more to polish.
 
 **AutoForge on itself 🤯** — Self-forged in project mode: 67% → 100% in 8 iterations. Fixed 2 script bugs, cleaned config/doc inconsistencies across 7 files.
 
