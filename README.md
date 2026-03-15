@@ -30,6 +30,115 @@ That's a vibe check, not optimization. AutoForge is different.
 
 ---
 
+## 🏗️ Architecture
+
+### Core Loop
+
+```mermaid
+flowchart TD
+    A["🎯 User defines target + evals"] --> B["📋 Top-Agent reads SKILL.md"]
+    B --> C["🔍 Baseline scan"]
+    C --> D{"🧠 Optimizer\n(Claude Opus)"}
+    D -->|Proposed fix| E{"🔬 Validator\n(GPT-5)"}
+    E -->|✅ Pass rate ≥ prev| F["📝 Log to TSV\n(status: improved)"]
+    E -->|❌ Pass rate < prev| G["📝 Log to TSV\n(status: discarded)"]
+    F --> H["📊 report.sh\nLive update"]
+    G --> H
+    H --> I{"Converged?"}
+    I -->|"3× 100% ✅"| J["🏆 Done — deploy"]
+    I -->|"5× retained ➡️"| J
+    I -->|"3× discard ❌"| K["⚠️ Stop — structural issue"]
+    I -->|"Max 30 🛑"| K
+    I -->|No| D
+
+    style A fill:#1e293b,stroke:#e94560,color:#fff
+    style D fill:#1e293b,stroke:#f59e0b,color:#fff
+    style E fill:#1e293b,stroke:#8b5cf6,color:#fff
+    style J fill:#064e3b,stroke:#10b981,color:#fff
+    style K fill:#450a0a,stroke:#ef4444,color:#fff
+```
+
+### Multi-Model Cross-Validation
+
+```mermaid
+sequenceDiagram
+    participant T as 🎯 Top Agent
+    participant O as 🧠 Optimizer<br/>(Opus)
+    participant V as 🔬 Validator<br/>(GPT-5)
+    participant R as 📊 Reporter
+
+    T->>O: Iter 1: Analyze target, find issues
+    O-->>T: Proposed changes + pass_rate
+    T->>R: Log iteration (TSV)
+    R-->>T: Live report sent
+
+    T->>V: Iter 2: Validate changes (blind)
+    V-->>T: Independent pass_rate + findings
+    T->>R: Log iteration (TSV)
+    R-->>T: Live report sent
+
+    T->>O: Iter 3: Fix validator findings
+    O-->>T: Updated changes + pass_rate
+    T->>R: Log iteration (TSV)
+
+    Note over T,R: Alternates until convergence
+```
+
+### Four Modes at a Glance
+
+```mermaid
+flowchart LR
+    subgraph prompt["💭 Prompt Mode"]
+        P1["Simulate 5 scenarios"] --> P2["Yes/No per eval"] --> P3["Calculate pass %"]
+    end
+
+    subgraph code["⚡ Code Mode"]
+        C1["Run in sandbox"] --> C2["Check exit/stdout/stderr"] --> C3["Measure pass %"]
+    end
+
+    subgraph audit["🔍 Audit Mode"]
+        A1["Read CLI --help"] --> A2["Compare docs vs reality"] --> A3["Flag drift"]
+    end
+
+    subgraph project["🏗️ Project Mode"]
+        PR1["Scan full repo"] --> PR2["Cross-file checks"] --> PR3["Fix across files"]
+    end
+
+    style prompt fill:#1e293b,stroke:#3b82f6,color:#fff
+    style code fill:#1e293b,stroke:#10b981,color:#fff
+    style audit fill:#1e293b,stroke:#f59e0b,color:#fff
+    style project fill:#1e293b,stroke:#e94560,color:#fff
+```
+
+### Project Mode Phases
+
+```mermaid
+flowchart TD
+    subgraph Phase1["📂 Phase 1 — Scan & Plan"]
+        S1["Walk repo tree"] --> S2["Build file-map\nwith priorities"] --> S3["Identify file relationships"]
+    end
+
+    subgraph Phase2["🔗 Phase 2 — Cross-File Analysis"]
+        X1["README ↔ CLI"] --> X2["Dockerfile ↔ deps"]
+        X2 --> X3["CI ↔ scripts"]
+        X3 --> X4[".env ↔ code refs"]
+        X4 --> X5["imports ↔ requirements"]
+    end
+
+    subgraph Phase3["🔧 Phase 3 — Iterative Fix Loop"]
+        F1["Minimal surgical fixes"] --> F2["Multi-file patches"] --> F3["Validate cross-file\nconsistency"]
+    end
+
+    Phase1 --> Phase2 --> Phase3
+    F3 -->|"Not converged"| F1
+
+    style Phase1 fill:#0f172a,stroke:#3b82f6,color:#fff
+    style Phase2 fill:#0f172a,stroke:#f59e0b,color:#fff
+    style Phase3 fill:#0f172a,stroke:#10b981,color:#fff
+```
+
+---
+
 ## 🚀 Quick Start
 
 **Install**
