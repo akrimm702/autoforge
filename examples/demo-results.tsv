@@ -1,11 +1,8 @@
 iteration	prompt_version_summary	pass_rate	change_description	status
-1	Baseline	45%	Original SKILL.md baseline	baseline
-2	Add missing subcommands	62%	16 Codex subcommands added	improved
-3	Fix approval flags	78%	Scoped flags by context	improved
-4	Add Claude flags	85%	40 Claude CLI flags documented	improved
-5	Fix JSON output example	90%	Removed pty:true from JSON examples	improved
-6	Edge case: sandbox modes	92%	Documented sandbox inheritance	improved
-7	Minor wording	92%	Clarified fork sessions	retained
-8	Add budget limits	95%	Cloud features + budget flags	improved
-9	Final polish	95%	Formatting consistency	retained
-10	Validation pass	100%	All checks green	improved
+1	Baseline eval	58%	Original version unchanged	baseline
+2	Added error handling	75%	try-catch + input validation	improved
+3	Edge case coverage	92%	Empty input + Unicode handling	improved
+4	Optimized output format	100%	Structured JSON output	improved
+5	Stress test regression	88%	Performance under load	discard
+6	Reverted + confirmed	100%	Reverted iter 5, retested	improved
+7	Final confirmation	100%	Third 100% confirmation	retained
