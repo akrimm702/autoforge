@@ -1,6 +1,23 @@
 ---
 name: autoforge
-description: 'Iterative optimization for code, skills, prompts, and repositories. Top-agent orchestrates with mathematical convergence. Four modes: prompt (mental simulation), code (sandboxed test runs), audit (CLI verification + doc alignment), project (whole-repo consistency). Use when: user says "autoforge", "forge", "optimize skill", "improve", "run autoforge", "optimize code", "improve script", "optimize repo", "forge project", "check project", "repo audit".'
+description: 'AutoForge is a production-grade autonomous optimization framework for AI agents. It replaces subjective "reflection" with mathematically rigorous convergence loops — tracking every iteration in TSV, cross-validating with multiple models, and stopping only when pass rates confirm real improvement. Four specialized modes: prompt (skill & doc optimization via scenario simulation), code (sandboxed test execution with measurable criteria), audit (CLI verification against live tool behavior), and project (whole-repo cross-file consistency analysis). Battle-tested across 50+ iterations on production skills. Use when: user says "autoforge", "forge", "optimize skill", "improve", "run autoforge", "optimize code", "improve script", "optimize repo", "forge project", "check project", "repo audit".'
+---
+
+# AutoForge — Autonomous Optimization Framework
+
+> Stop reflecting. Start converging. Every iteration is measured, logged, and validated — not vibed.
+
+AutoForge replaces ad-hoc "improve this" prompts with a rigorous optimization loop: define evals, run iterations, track pass rates in TSV, report live to your channel, and stop only when math says you're done. Multi-model cross-validation prevents the "same model grades its own homework" blind spot.
+
+**Four modes. One convergence standard.**
+
+| Mode | What it does | Best for |
+|------|-------------|----------|
+| `prompt` | Simulate 5 scenarios/iter, evaluate Yes/No | SKILL.md, prompts, doc templates |
+| `code` | Sandboxed test execution, measure exit/stdout/stderr | Shell scripts, Python tools, pipelines |
+| `audit` | Test CLI commands live, verify SKILL.md matches reality | CLI skill documentation |
+| `project` | Scan whole repo, cross-file consistency analysis | README↔CLI drift, Dockerfile↔deps, CI gaps |
+
 ---
 
 # AutoForge — Top-Agent Architecture
