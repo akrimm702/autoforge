@@ -265,6 +265,23 @@ For complex audits, split optimizer and validator across different models:
 
 The validator doesn't see the optimizer's reasoning — just the output. This prevents the "same model validates its own work" blind spot.
 
+### ⚠️ Sub-Agent Spawning Rules
+
+When spawning sub-agents (e.g. validators), **the TSV + report.sh workflow is non-negotiable**. Every spawned agent must:
+
+1. Write to the **same TSV format** (`results/[target]-results.tsv`)
+2. Call **report.sh after every iteration** — not send manual messages
+3. Run `report.sh --final` as the last action
+
+The SKILL.md includes a complete spawn template with all required paths, environment variables, and stop conditions. Copy it, adapt it, and paste it into your `sessions_spawn` task prompt.
+
+| ❌ Anti-Pattern | ✅ Correct |
+|-----------------|-----------|
+| Sub-agent sends manual messages with results | Sub-agent writes TSV + calls report.sh |
+| Sub-agent skips TSV "because it's just validation" | Every iteration writes TSV, no exceptions |
+| Top-agent spawns without TSV/report paths | Always include full paths in spawn task |
+| Sub-agent finishes without `--final` report | Last action is always `report.sh --final` |
+
 ---
 
 ## 🏆 Real-World Results
