@@ -55,6 +55,74 @@ For complex audits, you can **split two roles across different models**:
 
 ---
 
+## ⚠️ Spawning Sub-Agents — MANDATORY Rules
+
+When spawning sub-agents via `sessions_spawn` (for multi-model validation or parallel work), the **TSV + report.sh workflow is NON-NEGOTIABLE**. Every spawned agent MUST follow the exact same loop.
+
+### What MUST be in every `sessions_spawn` task prompt:
+
+1. **Exact TSV path** — e.g. `Write TSV to: ~/.openclaw/workspace/skills/autoforge/results/[target]-results.tsv`
+2. **Exact report.sh path** — e.g. `After every TSV row, run: bash ~/.openclaw/workspace/skills/autoforge/scripts/report.sh results/[target]-results.tsv "[Name]"`
+3. **Environment variables** — `AF_CHANNEL`, `AF_CHAT_ID`, `AF_TOPIC_ID` (set via `env` parameter or export in task)
+4. **The mode and evals** — what to check and how to score
+5. **Stop conditions** — reference this skill or embed them
+
+### Spawn Template (copy and adapt):
+
+```
+sessions_spawn task:
+"AutoForge [mode]: [target]
+
+WORKING DIRECTORY: ~/.openclaw/workspace/skills/autoforge
+TSV FILE: results/[target]-results.tsv
+REPORT COMMAND (run after EVERY TSV row):
+  bash scripts/report.sh results/[target]-results.tsv "[Skill Name]"
+REPORT COMMAND (final, after loop ends):
+  bash scripts/report.sh results/[target]-results.tsv "[Skill Name]" --final
+
+ENVIRONMENT (export before report.sh):
+  export AF_CHANNEL=telegram
+  export AF_CHAT_ID=-1003799867890
+  export AF_TOPIC_ID=2211
+
+MODE: [audit|prompt|code|project]
+TARGET: [path to file/repo]
+EVALS: [list of Yes/No evals]
+
+ITERATION WORKFLOW (MANDATORY for every iteration):
+1. Evaluate current state against evals → calculate pass_rate
+2. Write exactly ONE TSV row: printf '%s\t%s\t%s\t%s\t%s\n' ...
+3. Run report.sh IMMEDIATELY after TSV row
+4. Check stop conditions before next iteration
+
+STOP CONDITIONS:
+- Max 30 iterations
+- 3× 100% pass rate → done
+- 5× retained in a row → converged
+- 3× discard in a row → structural problem, stop
+
+STATUS RULES:
+- Iteration 1 = baseline (evaluate original, do NOT change)
+- improved = pass rate higher than previous best
+- retained = pass rate equal or marginally better
+- discard = pass rate lower → revert to best state
+
+DO NOT skip TSV or report.sh. DO NOT send manual messages instead.
+The TSV + report.sh IS the user interface. Without it, the run is invisible."
+```
+
+### Common Mistakes (that break the UX):
+
+| ❌ Wrong | ✅ Right |
+|----------|---------|
+| Sub-agent sends manual `message` with results | Sub-agent writes TSV + calls report.sh |
+| Sub-agent skips TSV "because it's just a validation" | Every iteration writes TSV, no exceptions |
+| Sub-agent uses its own reporting format | report.sh produces the standard Unicode bar format |
+| Top-agent spawns sub-agent without TSV/report paths | Always include full paths in spawn task |
+| Sub-agent finishes without `--final` report | Last action is always `report.sh --final` |
+
+---
+
 ## Configuration
 
 AutoForge uses environment variables for reporting. All are optional — without them, output goes to stdout.
@@ -62,20 +130,22 @@ AutoForge uses environment variables for reporting. All are optional — without
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AF_CHANNEL` | `telegram` | Messaging channel for reports |
-| `AF_CHAT_ID` | _(none)_ | Chat/group ID for report delivery |
-| `AF_TOPIC_ID` | _(none)_ | Thread/topic ID within the chat |
+| `AF_CHAT_ID` | `-1003799867890` | Chat/group ID for report delivery |
+| `AF_TOPIC_ID` | `2211` | Thread/topic ID within the chat (🔧 Skill Optimizer) |
 
 ---
 
 ## Hard Invariants
 
-These rules apply **always**, regardless of mode:
+These rules apply **always**, regardless of mode. **Violations = broken run.**
 
-1. **TSV is mandatory.** Every iteration writes exactly one row to `results/[target]-results.tsv`.
-2. **Reporting is mandatory.** Call `report.sh` immediately after every TSV row.
-3. **--dry-run never overwrites the target.** Only TSV, `*-proposed.md`, and reports are written.
-4. **Mode isolation is strict.** Only execute steps for the assigned mode.
-5. **Iteration 1 = Baseline.** Evaluate the original version unchanged, status `baseline`.
+1. **TSV is mandatory.** Every iteration writes exactly one row to `results/[target]-results.tsv`. No iteration exists without a TSV row.
+2. **Reporting is mandatory.** Call `report.sh` immediately after every TSV row. This is how the user sees progress. Without report.sh, the run is invisible.
+3. **Never send manual messages instead of report.sh.** Do NOT use `message` tool to send custom result summaries. The report.sh script produces the standardized Unicode bar format. Manual messages bypass the visual format the user expects.
+4. **--dry-run never overwrites the target.** Only TSV, `*-proposed.md`, and reports are written.
+5. **Mode isolation is strict.** Only execute steps for the assigned mode.
+6. **Iteration 1 = Baseline.** Evaluate the original version unchanged, status `baseline`.
+7. **Sub-agents follow the same rules.** When spawning sub-agents via `sessions_spawn`, they MUST write to the same TSV format and call report.sh. See "Spawning Sub-Agents" section.
 
 ---
 
