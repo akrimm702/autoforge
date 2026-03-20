@@ -1,0 +1,113 @@
+{
+  "examples": [
+    {
+      "name": "e2e-skill-test",
+      "description": "End-to-end test of a CLI skill with multi-model validation",
+      "config": {
+        "mode": "e2e",
+        "target": "~/.openclaw/workspace/skills/my-skill/SKILL.md",
+        "validators": ["anthropic/claude-sonnet-4", "openai/gpt-4.1"],
+        "convergenceThreshold": 95,
+        "regressionThreshold": 5,
+        "evalCategories": true,
+        "incrementalPatches": true,
+        "maxFindingsLoops": 2,
+        "evals": [
+          {
+            "name": "CLI --help works",
+            "category": "live",
+            "steps": [
+              { "tool": "exec", "command": "my-tool --help", "expect": { "exit_code": 0, "stdout_contains": "Usage" } }
+            ]
+          },
+          {
+            "name": "Basic operation succeeds",
+            "category": "live",
+            "steps": [
+              { "tool": "exec", "command": "my-tool run --input test.txt", "expect": { "exit_code": 0, "file_exists": "output.txt" } }
+            ]
+          },
+          {
+            "name": "SKILL.md format correct",
+            "category": "structural",
+            "check": "Has frontmatter, description, examples section"
+          },
+          {
+            "name": "Error handling documented",
+            "category": "simulated",
+            "check": "SKILL.md covers common error scenarios"
+          }
+        ]
+      }
+    },
+    {
+      "name": "multi-model-deep-audit",
+      "description": "Deep audit with 2 validators and regression guard",
+      "config": {
+        "mode": "audit",
+        "target": "~/.openclaw/workspace/skills/coding-agent/SKILL.md",
+        "validators": ["anthropic/claude-sonnet-4", "google/gemini-2.5-pro"],
+        "convergenceThreshold": 95,
+        "regressionThreshold": 3,
+        "evalCategories": true,
+        "evals": [
+          { "name": "All spawn flags documented", "category": "structural" },
+          { "name": "PTY requirements correct", "category": "live" },
+          { "name": "Workspace protection rules present", "category": "structural" },
+          { "name": "Model-specific instructions accurate", "category": "simulated" },
+          { "name": "Examples are executable", "category": "live" }
+        ]
+      }
+    },
+    {
+      "name": "findings-loop-prompt",
+      "description": "Prompt optimization with automatic e2e validation after convergence",
+      "config": {
+        "mode": "prompt",
+        "target": "~/.openclaw/workspace/skills/weather/SKILL.md",
+        "e2eAfterConvergence": true,
+        "maxFindingsLoops": 3,
+        "evalCategories": true,
+        "evals": [
+          { "name": "Weather data fetched correctly", "category": "simulated" },
+          { "name": "Temperature format consistent", "category": "structural" },
+          { "name": "Location parsing handles edge cases", "category": "simulated" }
+        ],
+        "e2eTests": [
+          {
+            "name": "wttr.in responds",
+            "steps": [
+              { "tool": "exec", "command": "curl -s 'wttr.in/Berlin?format=j1' | jq .current_condition[0].temp_C", "expect": { "exit_code": 0 } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "personal-improvements",
+      "description": "Analyze session logs for behavioral patterns and generate skill improvements",
+      "config": {
+        "mode": "personal-improvements",
+        "target": "~/.openclaw/workspace/skills/coding-agent/SKILL.md",
+        "sessionsDir": "~/.openclaw/agents/main/sessions/",
+        "focus": ["premature_stops", "tool_call_failures", "instruction_drift"],
+        "minSessions": 10,
+        "outputReport": "results/personal-improvements-report.md"
+      }
+    },
+    {
+      "name": "v1-compatible-prompt",
+      "description": "Standard v1 prompt mode — works unchanged in v2",
+      "config": {
+        "mode": "prompt",
+        "target": "~/.openclaw/workspace/skills/summarize/SKILL.md",
+        "evals": [
+          "All source types covered? (Yes/No)",
+          "Output format documented? (Yes/No)",
+          "Error handling described? (Yes/No)",
+          "Examples realistic? (Yes/No)"
+        ]
+      }
+    }
+  ]
+}

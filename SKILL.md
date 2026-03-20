@@ -1,6 +1,6 @@
 ---
 name: autoforge
-description: 'AutoForge is a production-grade autonomous optimization framework for AI agents. It replaces subjective "reflection" with mathematically rigorous convergence loops — tracking every iteration in TSV, cross-validating with multiple models, and stopping only when pass rates confirm real improvement. Four specialized modes: prompt (skill & doc optimization via scenario simulation), code (sandboxed test execution with measurable criteria), audit (CLI verification against live tool behavior), and project (whole-repo cross-file consistency analysis). Battle-tested across 50+ iterations on production skills. Use when: user says "autoforge", "forge", "optimize skill", "improve", "run autoforge", "optimize code", "improve script", "optimize repo", "forge project", "check project", "repo audit".'
+description: 'AutoForge — Production-grade autonomous optimization framework for AI agents. Replaces subjective reflection with mathematically rigorous convergence loops — tracking every iteration in TSV, cross-validating with multiple models, and stopping only when pass rates confirm real improvement. Seven modes: prompt (skill/doc optimization via scenario simulation), code (sandboxed test execution with measurable criteria), audit (CLI verification against live tool behavior), project (whole-repo cross-file consistency analysis), e2e (live end-to-end testing against real tools/APIs), personal (learns from session logs to improve agent behavior). Features: multi-model validation, regression guards, confidence-weighted evals, incremental patches, findings loops, session-log analysis. Battle-tested across 50+ iterations on production skills. Use when: user says "autoforge", "forge", "auto-research", "optimize skill", "improve", "run autoforge", "optimize code", "improve script", "optimize repo", "forge project", "check project", "repo audit", "skill verbessern", "optimiere", "loop laufen lassen", "code optimieren", "script verbessern".'
 ---
 
 # AutoForge — Autonomous Optimization Framework
@@ -9,7 +9,7 @@ description: 'AutoForge is a production-grade autonomous optimization framework 
 
 AutoForge replaces ad-hoc "improve this" prompts with a rigorous optimization loop: define evals, run iterations, track pass rates in TSV, report live to your channel, and stop only when math says you're done. Multi-model cross-validation prevents the "same model grades its own homework" blind spot.
 
-**Four modes. One convergence standard.**
+## Modes
 
 | Mode | What it does | Best for |
 |------|-------------|----------|
@@ -17,12 +17,12 @@ AutoForge replaces ad-hoc "improve this" prompts with a rigorous optimization lo
 | `code` | Sandboxed test execution, measure exit/stdout/stderr | Shell scripts, Python tools, pipelines |
 | `audit` | Test CLI commands live, verify SKILL.md matches reality | CLI skill documentation |
 | `project` | Scan whole repo, cross-file consistency analysis | README↔CLI drift, Dockerfile↔deps, CI gaps |
+| `e2e` | Live end-to-end tests against real tools/APIs | Integration testing, API validation |
+| `personal` | Analyze session logs, improve agent behavior patterns | Self-improvement from real usage data |
 
 ---
 
-# AutoForge — Top-Agent Architecture
-
-## Overview
+## Architecture
 
 ```
 Agent (you)
@@ -30,108 +30,58 @@ Agent (you)
 ├── Iteration 1: evaluate → improve → write TSV → report
 ├── Iteration 2: evaluate → improve → write TSV → report
 ├── ...
-└── Finish: report.sh --final → configured channel
+├── Findings: accumulated findings written to findings.md
+├── Regression Guard: auto-compare against previous best
+└── Finish: report.sh --final --dashboard → summary.sh → channel
 ```
 
 ### Sub-Agent = You
 "Sub-Agent" is a **conceptual role**, not a separate process. You (the top-agent) execute each iteration yourself: simulate/execute → evaluate → write TSV → call report.sh. The templates below describe what you do PER ITERATION — not what you send to another agent.
 
-For code mode, run tests using the `exec` tool.
+For code/e2e modes, run tests using the `exec` tool.
 
-### Multi-Model Setup (recommended for Deep Audits)
+### Multi-Model Validation
 
-For complex audits, you can **split two roles across different models**:
+Split optimizer and validator across different models for blind cross-validation:
 
 | Role | Model | Task |
 |------|-------|------|
-| **Optimizer** | Opus / GPT-4.1 | Analyzes, finds issues, writes fixes |
-| **Validator** | GPT-5 / Gemini (different model) | Checks against ground truth, provides pass rate |
+| **Optimizer** | Opus / GPT-5 | Analyzes, finds issues, writes fixes |
+| **Validator** | Different model (Gemini, GPT, Claude) | Checks against ground truth, provides pass rate |
 
-**Flow:** Optimizer and Validator alternate. Optimizer iterations have status `improved`/`retained`/`discard`. Validator iterations confirm or refute the pass rate. Spawn validators as sub-agents with `sessions_spawn` and explicit `model`.
+**Flow:** Spawn validators as sub-agents with `sessions_spawn` and explicit `model`. Validator gets ONLY the output — not the optimizer's reasoning. This prevents "grading your own homework."
 
-**When to use Multi-Model:** Deep Audits (>5 iterations expected), complex ground truth, or when a single model is blind to its own errors.
+**When to use:** Deep Audits (>5 iterations expected), complex ground truth, ambiguous evals.
+**When single-model suffices:** Simple CLI audits, prompt optimization, code with clear pass/fail tests.
 
-**When Single-Model suffices:** Simple CLI audits, prompt optimization, code with clear tests.
-
----
-
-## ⚠️ Spawning Sub-Agents — MANDATORY Rules
-
-When spawning sub-agents via `sessions_spawn` (for multi-model validation or parallel work), the **TSV + report.sh workflow is NON-NEGOTIABLE**. Every spawned agent MUST follow the exact same loop.
-
-### What MUST be in every `sessions_spawn` task prompt:
-
-1. **Exact TSV path** — e.g. `Write TSV to: ~/.openclaw/workspace/skills/autoforge/results/[target]-results.tsv`
-2. **Exact report.sh path** — e.g. `After every TSV row, run: bash ~/.openclaw/workspace/skills/autoforge/scripts/report.sh results/[target]-results.tsv "[Name]"`
-3. **Environment variables** — `AF_CHANNEL`, `AF_CHAT_ID`, `AF_TOPIC_ID` (set via `env` parameter or export in task)
-4. **The mode and evals** — what to check and how to score
-5. **Stop conditions** — reference this skill or embed them
-
-### Spawn Template (copy and adapt):
-
-```
-sessions_spawn task:
-"AutoForge [mode]: [target]
-
-WORKING DIRECTORY: ~/.openclaw/workspace/skills/autoforge
-TSV FILE: results/[target]-results.tsv
-REPORT COMMAND (run after EVERY TSV row):
-  bash scripts/report.sh results/[target]-results.tsv "[Skill Name]"
-REPORT COMMAND (final, after loop ends):
-  bash scripts/report.sh results/[target]-results.tsv "[Skill Name]" --final
-
-ENVIRONMENT (export before report.sh):
-  export AF_CHANNEL=telegram
-  export AF_CHAT_ID=-1003799867890
-  export AF_TOPIC_ID=2211
-
-MODE: [audit|prompt|code|project]
-TARGET: [path to file/repo]
-EVALS: [list of Yes/No evals]
-
-ITERATION WORKFLOW (MANDATORY for every iteration):
-1. Evaluate current state against evals → calculate pass_rate
-2. Write exactly ONE TSV row: printf '%s\t%s\t%s\t%s\t%s\n' ...
-3. Run report.sh IMMEDIATELY after TSV row
-4. Check stop conditions before next iteration
-
-STOP CONDITIONS:
-- Max 30 iterations
-- 3× 100% pass rate → done
-- 5× retained in a row → converged
-- 3× discard in a row → structural problem, stop
-
-STATUS RULES:
-- Iteration 1 = baseline (evaluate original, do NOT change)
-- improved = pass rate higher than previous best
-- retained = pass rate equal or marginally better
-- discard = pass rate lower → revert to best state
-
-DO NOT skip TSV or report.sh. DO NOT send manual messages instead.
-The TSV + report.sh IS the user interface. Without it, the run is invisible."
-```
-
-### Common Mistakes (that break the UX):
-
-| ❌ Wrong | ✅ Right |
-|----------|---------|
-| Sub-agent sends manual `message` with results | Sub-agent writes TSV + calls report.sh |
-| Sub-agent skips TSV "because it's just a validation" | Every iteration writes TSV, no exceptions |
-| Sub-agent uses its own reporting format | report.sh produces the standard Unicode bar format |
-| Top-agent spawns sub-agent without TSV/report paths | Always include full paths in spawn task |
-| Sub-agent finishes without `--final` report | Last action is always `report.sh --final` |
+⚠️ **Validator Invariant:** If the task prompt specifies `Validators:`, they MUST be spawned. Skipping validators mid-run makes the run INVALID.
 
 ---
 
 ## Configuration
 
-AutoForge uses environment variables for reporting. All are optional — without them, output goes to stdout.
-
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AF_CHANNEL` | `telegram` | Messaging channel for reports |
 | `AF_CHAT_ID` | `-1003799867890` | Chat/group ID for report delivery |
-| `AF_TOPIC_ID` | `2211` | Thread/topic ID within the chat (🔧 Skill Optimizer) |
+| `AF_TOPIC_ID` | `2211` | Thread/topic ID (🔧 Skill Optimizer) |
+
+### V2 Config Fields (in task prompt or JSON)
+
+```json
+{
+  "mode": "e2e",
+  "target": "./my-skill/SKILL.md",
+  "validators": ["anthropic/claude-sonnet-4", "openai/gpt-4.1"],
+  "convergenceThreshold": 95,
+  "regressionThreshold": 5,
+  "maxFindingsLoops": 3,
+  "evalCategories": true,
+  "incrementalPatches": true
+}
+```
+
+All config fields are optional. Without them, behavior is classic single-model mode.
 
 ---
 
@@ -139,32 +89,20 @@ AutoForge uses environment variables for reporting. All are optional — without
 
 These rules apply **always**, regardless of mode. **Violations = broken run.**
 
-1. **TSV is mandatory.** Every iteration writes exactly one row to `results/[target]-results.tsv`. No iteration exists without a TSV row.
-2. **Reporting is mandatory.** Call `report.sh` immediately after every TSV row. This is how the user sees progress. Without report.sh, the run is invisible.
-3. **Never send manual messages instead of report.sh.** Do NOT use `message` tool to send custom result summaries. The report.sh script produces the standardized Unicode bar format. Manual messages bypass the visual format the user expects.
+1. **TSV is mandatory.** Every iteration writes exactly one row to `results/[target]-results.tsv`.
+2. **Reporting is mandatory.** Call `report.sh` immediately after every TSV row.
+3. **Never send manual messages instead of report.sh.** The script produces the standardized Unicode bar format.
 4. **--dry-run never overwrites the target.** Only TSV, `*-proposed.md`, and reports are written.
 5. **Mode isolation is strict.** Only execute steps for the assigned mode.
 6. **Iteration 1 = Baseline.** Evaluate the original version unchanged, status `baseline`.
-7. **Sub-agents follow the same rules.** When spawning sub-agents via `sessions_spawn`, they MUST write to the same TSV format and call report.sh. See "Spawning Sub-Agents" section.
+7. **Sub-agents follow the same rules.** When spawning sub-agents, they MUST write TSV and call report.sh.
+8. **Regression Guard.** After every eval, compare individual eval results against the best state. If a previously passing eval now fails → `regression`, log finding, revert.
+9. **Findings accumulate.** Write issues to `results/[target]-findings.md` as they emerge.
+10. **Summary at end.** After `report.sh --final`, always run `summary.sh`.
 
 ---
 
-## Modes — Read ONLY Your Mode!
-
-You are assigned ONE mode. **Ignore all sections for other modes.**
-
-| Mode | What happens | Output |
-|------|-------------|--------|
-| `prompt` | Mentally simulate skill/prompt, evaluate against evals | Improved prompt text |
-| `code` | Run tests in sandbox, measure results | Improved code |
-| `audit` | Test CLI commands (read-only only!) + verify SKILL.md against reality | Improved SKILL.md |
-| `project` | Scan whole repo, cross-file analysis, fix multiple files per iteration | Improved repository |
-
-**Your mode is in the task prompt.** Everything else is irrelevant to you.
-
----
-
-## TSV Format (same for ALL modes)
+## TSV Format
 
 ### Header (once at loop start):
 ```bash
@@ -175,287 +113,218 @@ printf '%s\t%s\t%s\t%s\t%s\n' "iteration" "prompt_version_summary" "pass_rate" "
 ```bash
 printf '%s\t%s\t%s\t%s\t%s\n' "1" "Baseline" "58%" "Original version" "baseline" >> results/[target]-results.tsv
 ```
-> **Use `printf` not `echo -e`!** `echo -e` interprets backslashes in field values. `printf '%s'` outputs strings literally.
 
-### 5 columns, TAB-separated, EXACTLY this order:
+### 5 columns (v1) or 8 columns (v2-extended), TAB-separated:
 
 | # | Column | Type | Rules |
 |---|--------|------|-------|
 | 1 | `iteration` | Integer | 1, 2, 3, ... |
-| 2 | `prompt_version_summary` | String | Max 50 Unicode chars. No tabs, no newlines. |
-| 3 | `pass_rate` | String | Number + `%`: `58%`, `92%`, `100%`. Always integer. |
-| 4 | `change_description` | String | Max 100 Unicode chars. No tabs, no newlines. |
-| 5 | `status` | Enum | Exactly one of: `baseline` · `improved` · `retained` · `discard` |
+| 2 | `prompt_version_summary` | String | Max 50 chars, no tabs/newlines |
+| 3 | `pass_rate` | String | `58%`, `92%`, `100%` — always integer |
+| 4 | `change_description` | String | Max 100 chars, no tabs/newlines |
+| 5 | `status` | Enum | `baseline` · `improved` · `retained` · `discard` · `regression` |
+| 6 | `confidence_breakdown` | String | `S:100%/M:85%/L:95%` or `-` (v2 only) |
+| 7 | `blast_radius` | String | `+12/-3` or `-` (v2 only) |
+| 8 | `validators` | String | `claude:94%/gpt:97%` or `-` (v2 only) |
 
-### Escaping rules:
-- **Tabs** in text fields → replace with spaces
-- **Newlines** in text fields → replace with ` | `
-- **Empty fields** → use hyphen `-` (never leave empty)
-- **`$` and backticks** → use `printf '%s'` or escape with `\$` (prevents unintended variable interpolation)
-- **Unicode/Emoji** allowed, count as 1 character (not bytes)
+> **Use `printf` not `echo -e`!** `echo -e` interprets backslashes. `printf '%s'` outputs literally.
 
-### Status rules (based on pass-rate comparison):
-- `baseline` — **Mandatory for Iteration 1.** Evaluate original version only.
-- `improved` — Pass rate **higher** than previous best → new version becomes current state
-- `retained` — Pass rate **equal or marginally better** → predecessor remains
-- `discard` — Pass rate **lower** → change discarded, revert to best state
+### Status values:
+- `baseline` — Iteration 1 only, evaluate original unchanged
+- `improved` — Pass rate higher than previous best AND no regressions
+- `retained` — Equal or marginally better
+- `discard` — Lower pass rate → revert to best state
+- `regression` — Pass rate may be higher BUT a previously passing eval now fails → revert + log finding
 
 ---
 
-## Reporting (same for ALL modes)
+## Eval Categories
 
-**After EVERY TSV row** (including baseline):
+| Category | Confidence | Weight | Description |
+|----------|-----------|--------|-------------|
+| `structural` | High (95%+) | 1.0 | Static analysis, format checks |
+| `simulated` | Medium (70-90%) | 1.5 | Mental simulation, hypothetical |
+| `live` | Highest (99%+) | 2.0 | Actually executed and measured |
+
+**Weighted pass rate:** `Σ(passing × weight) / Σ(all × weight) × 100`
+
+Rules: `prompt` evals = simulated, `code`/`e2e` = live, `audit` = mixed, `project` = mixed.
+
+---
+
+## Incremental Patches
+
+Instead of rewriting the entire target each iteration:
+
+1. **Identify the specific failing evals** — don't touch what's passing
+2. **Make the smallest change** that fixes the failing eval(s)
+3. **Verify no regressions** — re-check previously passing evals
+4. If patch causes regression → revert, log finding, try different approach
+5. **Never rewrite >30% of target in one iteration**
+
+In `change_description`, be specific:
+- ✅ "Added --format flag docs (line 45-52)"
+- ❌ "Improved overall quality" (too vague)
+
+---
+
+## Findings Loop
+
+```
+optimize → test → findings → optimize → test → ...
+```
+
+1. Normal loop runs until convergence
+2. Any `discard`/`regression` creates a finding in `results/[target]-findings.md`
+3. `improved` iterations reference which finding(s) they resolve
+4. Unresolved findings go into summary report
+5. Safety: `maxFindingsLoops` (default: 3) prevents infinite loops
+
+---
+
+## Regression Guard
+
+1. After baseline, store the set of **individually passing evals** as the "guard set"
+2. On each iteration, check ALL evals — not just total pass rate
+3. If total rate improves BUT a guard eval now fails → `regression`
+4. Revert to best state, log the regression as a finding
+
+---
+
+## Stop Conditions
+
+Priority — first matching wins:
+
+1. 🛑 **Minimum iterations** — If specified, must be reached first
+2. 🛑 **Max 30 iterations** — Hard safety net
+3. ❌ **3× `discard` in a row** → structural problem, stop
+4. ❌ **3× `regression` in a row** → fundamental issue, stop
+5. ✅ **3× 100% pass rate** (after minimum) → confirmed perfect
+6. ➡️ **5× `retained` in a row** → converged
+
+**Multi-Model Convergence:** When validators configured, convergence requires ALL validators ≥ `convergenceThreshold`. Single validator below threshold blocks convergence.
+
+**Validator Noise:** After all real fixes, if >3 discards come in a row and fail justifications don't hold up → declare convergence.
+
+---
+
+## Reporting
+
+### After EVERY TSV row:
 ```bash
 bash scripts/report.sh results/[target]-results.tsv "[Skill Name]"
 ```
 
-**After loop ends**, additionally with `--final`:
+### After loop ends:
 ```bash
-bash scripts/report.sh results/[target]-results.tsv "[Skill Name]" --final
+bash scripts/report.sh results/[target]-results.tsv "[Skill Name]" --final --dashboard
 ```
 
-The report script reads `AF_CHANNEL`, `AF_CHAT_ID`, and `AF_TOPIC_ID` from environment. Without them, it prints to stdout with ANSI colors.
+### Generate summary:
+```bash
+bash scripts/summary.sh results/[target]-results.tsv --output results/[target]-summary.md
+```
+
+### Generate visualization (optional):
+```bash
+python3 scripts/visualize.py results/[target]-results.tsv --title "[Name]" --output results/[target]-progress.png
+```
+
+### Multi-run comparison:
+```bash
+python3 scripts/visualize.py results/a.tsv results/b.tsv --compare --output comparison.png
+```
+
+Report features: Unicode progress bars, status icons, stats block, trend indicators, efficiency metrics, regression warnings, improvement tiers, dashboard mode, JSON output.
 
 ---
 
-## Stop Conditions (for ALL modes)
+## Spawning Sub-Agents
 
-Priority — first matching condition wins, top to bottom:
+When spawning via `sessions_spawn`, the TSV + report.sh workflow is **NON-NEGOTIABLE**:
 
-1. 🛑 **Minimum iterations** — If specified in task (e.g. "min 5"), this count MUST be reached. No other condition can stop before.
-2. 🛑 **Max 30 iterations** — Hard safety net, stop immediately.
-3. ❌ **3× `discard` in a row** → structural problem, stop + analyze.
-4. ✅ **3× 100% pass rate** (after minimum) → confirmed perfect, done.
-5. ➡️ **5× `retained` in a row** → converged, done.
+```
+sessions_spawn task:
+"AutoForge [mode]: [target]
 
-### Counting rules:
-- `3× 100%` = three iterations with `pass_rate == 100%`, not necessarily consecutive.
-- `5× retained` and `3× discard` = **consecutive** (in a row).
-- `baseline` counts toward no series.
-- `improved` interrupts `retained` and `discard` series.
+WORKING DIRECTORY: ~/.openclaw/workspace/skills/autoforge
+TSV FILE: results/[target]-results.tsv
+REPORT COMMAND: bash scripts/report.sh results/[target]-results.tsv "[Name]"
+FINAL REPORT: bash scripts/report.sh results/[target]-results.tsv "[Name]" --final --dashboard
+SUMMARY: bash scripts/summary.sh results/[target]-results.tsv --output results/[target]-summary.md
 
-**At 100% in early iterations:** Keep going! Test harder edge cases. Only 3× 100% *after the minimum* confirms true perfection.
+ENVIRONMENT:
+  export AF_CHANNEL=telegram
+  export AF_CHAT_ID=-1003799867890
+  export AF_TOPIC_ID=2211
 
-### Recognizing Validator Noise
+MODE: [prompt|code|audit|project|e2e|personal]
+TARGET: [path]
+EVALS: [list]
 
-In multi-model setups, the Validator can produce **false positives** — fails that aren't real issues:
+V2 CONFIG (optional):
+  validators: [model1, model2]
+  convergenceThreshold: 95
+  regressionThreshold: 5
+  evalCategories: true
+  incrementalPatches: true
+  maxFindingsLoops: 3
 
-- **Config path vs tool name confusion** (e.g. `agents.list[]` ≠ `agents_list` tool)
-- **Inverted checks** ("no X" → Validator looks for X as required)
-- **Normal English as forbidden reference** (e.g. "runtime outcome" ≠ `runtime: "acp"`)
-- **Overcounting** (thread commands counted as subagent commands)
+STOP CONDITIONS:
+- Max 30 iterations
+- 3× 100% pass rate → done
+- 5× retained → converged
+- 3× discard/regression in a row → stop
 
-**Rule:** If after all real fixes >3 discards come in a row and the fail justifications don't hold up under scrutiny → **declare convergence**, don't validate endlessly.
+EXECUTION RULE: After EVERY tool result, immediately make the next call.
+NEVER end a turn with 'I will now...' — just DO it."
+```
 
 ---
 
-## Execution Modes
+## Modes — Read ONLY Your Mode
+
+### mode: prompt
+Per iteration: Read target → simulate 5 scenarios → eval Yes/No → pass rate → TSV + report.
+At end: best version → `results/[target]-proposed.md`
+
+### mode: code
+Per iteration: `SCRATCH=$(mktemp -d)` → write code → execute with `timeout 60s` → measure exit/stdout/stderr → eval → TSV + report.
+At end: best code → `results/[target]-proposed.[ext]`
+
+### mode: audit
+Two variants:
+- **Simple** (2 iterations): Baseline → Proposed Fix. For tools with clear `--help`.
+- **Deep** (iterative + multi-model): Full convergence loop. For extensive documentation.
+
+⚠️ DO NOT write your own code — only test CLI commands (`--help` + read-only).
+
+Fixed evals: Completeness (≥80% commands), Correctness (≥90% syntax), No stale refs, No missing core features, Workflow quality.
+
+### mode: project
+Three phases: Scan & Plan → Cross-File Analysis → Iterative Fix Loop.
+Cross-file checks: README↔CLI, Dockerfile↔deps, CI↔structure, `.env.example`↔code, imports↔deps, tests↔source, `.gitignore`↔artifacts.
+Multiple files can change per iteration (incremental patches, not rewrites).
+
+### mode: e2e
+Live end-to-end tests against **real tools/APIs** (not mocked). All evals are `live` category.
+Safety: NEVER destructive commands without `--dry-run`, ALWAYS timeouts, max 10 API calls/iteration.
+Eval types: api_responds, cli_works, integration, latency, idempotent, rollback, side_effects.
+
+### mode: personal
+Analyze real session logs to find behavioral patterns. Data: memory files, LCM history, cron runs.
+Patterns: repeated mistakes, slow responses, user corrections, missing proactivity, style mismatches, tool misuse.
+**READ ONLY** — findings are proposals, never auto-apply to SOUL.md/AGENTS.md.
+
+---
+
+## Execution Flags
 
 | Flag | Behavior |
 |------|----------|
-| `--dry-run` (default) | Only TSV + proposed files. Target file/repo remains unchanged. |
-| `--live` | Target file/repo is overwritten. Auto-backup → `results/backups/` |
-| `--resume` | Read existing TSV, continue from last iteration. On invalid format: abort. |
-
----
-
-## mode: prompt
-
-> **Only read if your task contains `mode: prompt`!**
-
-### Per Iteration: What you do
-1. Read current prompt/skill
-2. **Mentally simulate 5 different realistic scenarios**
-3. Evaluate each scenario against **all evals** (Yes=1, No=0)
-4. Pass rate = (Sum Yes) / (Eval count × 5 scenarios) × 100
-5. Compare with best previous pass rate → determine status
-6. On `improved`: propose **minimal, surgical** improvement
-7. Write TSV row + call report.sh
-8. Check stop conditions
-
-### At the End
-Best version → `results/[target]-proposed.md` + report.sh `--final`
-
----
-
-## mode: code
-
-> **Only read if your task contains `mode: code`!**
-
-### Per Iteration: What you do
-1. Create sandbox: `SCRATCH=$(mktemp -d) && cd $SCRATCH`
-2. Write current code to sandbox
-3. Execute test command (with `timeout 60s`)
-4. Measure: exit_code, stdout, stderr, runtime
-5. Evaluate against evals → calculate pass rate
-6. On `improved`: minimal code improvement + verify again
-7. Write TSV row + call report.sh
-8. Check stop conditions
-
-### Code Eval Types
-
-| Eval Type | Description | Example |
-|-----------|-------------|---------|
-| `exit_code` | Process exit code | `exit_code == 0` |
-| `output_contains` | stdout contains string | `"SUCCESS" in stdout` |
-| `output_matches` | stdout matches regex | `r"Total: \d+"` |
-| `test_pass` | Test framework green | `pytest exit 0` |
-| `runtime` | Runtime limit | `< 5000ms` |
-| `no_stderr` | No error output | `stderr == ""` |
-| `file_exists` | Output file created | `result.json exists` |
-| `json_valid` | Output is valid JSON | `json.loads(stdout)` |
-
-### At the End
-Best code → `results/[target]-proposed.[ext]` + report.sh `--final`
-
----
-
-## mode: audit
-
-> **Only read if your task contains `mode: audit`!**
-
-⚠️ **DO NOT write your own code.** Only test CLI commands of the target tool (`--help` + read-only).
-
-### Two Variants
-
-**Simple Audit (CLI skill, clear commands):**
-- 2 iterations: Baseline → Proposed Fix
-- For tools with clear `--help` output and simple command structure
-
-**Deep Audit (complex docs, many checks):**
-- Iterative loop like prompt/code, same stop conditions
-- For extensive documentation with many checkpoints (e.g. config keys, tool policy, parameter lists)
-- Recommended: Multi-Model setup (Opus Optimizer + external Validator)
-
-### Simple Audit Flow
-1. Write TSV header
-2. **Iteration 1 (Baseline):** Test every documented command → pass rate → TSV + report
-3. **Iteration 2 (Proposed Fix):** Write improved SKILL.md → expected pass rate → TSV + report
-4. Improved SKILL.md → `results/[target]-proposed.md`
-5. Detail results → `results/[target]-audit-details.md` (NOT in TSV!)
-6. report.sh `--final`
-
-### Deep Audit Flow
-1. Write TSV header
-2. **Iteration 1 (Baseline):** Extract ground truth from source, define all checks, evaluate baseline
-3. **Iterations 2+:** Optimizer fixes issues → Validator checks → TSV + report per iteration
-4. Loop runs until stop conditions trigger (3× 100%, 5× retained, 3× discard)
-5. Final version → `results/[target]-proposed.md` or `results/[target]-v1.md`
-6. report.sh `--final`
-
-### Fixed Evals (audit)
-1. Completeness — Does SKILL.md cover ≥80% of real commands/config?
-2. Correctness — Are ≥90% of documented commands/params syntactically correct?
-3. No stale references — Does everything documented actually exist?
-4. No missing core features — Are all important features covered?
-5. Workflow quality — Does quick-start actually work?
-
----
-
-## mode: project
-
-> **Only read if your task contains `mode: project`!**
-
-⚠️ **This mode operates on an ENTIRE repository/directory**, not a single file. Cross-file consistency is the core feature — this is NOT "audit on many files."
-
-### Three Phases
-
-Project mode runs through three sequential phases. Phases 1 and 2 happen once (in Iteration 1 = Baseline). Phase 3 is the iterative fix loop.
-
----
-
-### Phase 1: Scan & Plan
-
-1. **Analyze the repo directory:**
-   ```bash
-   # Discover structure
-   tree -L 3 --dirsfirst [target_dir]
-   ls -la [target_dir]
-   ```
-2. **Identify relevant files** and classify by priority:
-
-   | Priority | Files |
-   |----------|-------|
-   | **critical** | README, Dockerfile, CI workflows (.github/workflows), package.json/requirements.txt, main entry points |
-   | **normal** | Tests, configs, scripts, .env.example, .gitignore |
-   | **low** | Docs, examples, LICENSE, CHANGELOG |
-
-3. **Build the File-Map** — a mental inventory of what exists and what's missing.
-4. **Compose eval set:** Merge user-provided evals with auto-detected evals (see Default Evals below).
-
----
-
-### Phase 2: Cross-File Analysis
-
-Run consistency checks **across** files. Each check = one eval point:
-
-| Check | What it verifies |
-|-------|-----------------|
-| **README ↔ CLI** | Documented commands/flags match actual `--help` output |
-| **Dockerfile ↔ deps** | `requirements.txt` / `package.json` versions match what Dockerfile installs |
-| **CI ↔ project structure** | Workflow references correct paths, scripts, test commands |
-| **`.env.example` ↔ code** | Every env var in code has a corresponding entry in `.env.example` |
-| **Imports ↔ dependencies** | Every `import` / `require` has a matching dependency declaration |
-| **Tests ↔ source** | Test files exist for critical modules |
-| **`.gitignore` ↔ artifacts** | Build outputs, secrets, and caches are excluded |
-
-**Result of Phase 2:** A complete eval checklist with per-file and cross-file checks, each scored Yes/No.
-
----
-
-### Phase 3: Iterative Fix Loop
-
-Same loop logic as prompt/code/audit — TSV, report.sh, stop conditions. Key differences:
-
-- **Multiple files** can be changed per iteration
-- **Pass rate** = aggregated over ALL evals (file-specific + cross-file)
-- **Fixes are minimal and surgical** — don't refactor blindly, only fix what improves pass rate
-- **`change_description`** includes which files were touched: `"Fix Dockerfile + CI workflow sync"`
-
-### Per Iteration: What you do
-1. Evaluate current repo state against **all evals** (file-specific + cross-file)
-2. Calculate pass rate: (passing evals / total evals) × 100
-3. Compare with best previous pass rate → determine status
-4. On `improved`: apply **minimal, surgical fixes** to the fewest files necessary
-5. Verify the fix didn't break other evals (re-run affected checks)
-6. Write TSV row + call report.sh
-7. Check stop conditions
-
-### Dry-Run vs Live
-
-| Flag | Behavior |
-|------|----------|
-| `--dry-run` (default) | Fixed files → `results/[target]-proposed/` directory (mirrors repo structure). Original repo untouched. |
-| `--live` | Files overwritten in-place. Originals backed up → `results/backups/` (preserving directory structure). |
-
-### Default Evals (auto-applied unless overridden)
-
-These evals are **automatically used** when the user doesn't provide custom evals. The agent detects which are applicable based on what exists in the repo:
-
-| # | Eval | Condition |
-|---|------|-----------|
-| 1 | README accurate? (describes actual features/commands) | README exists |
-| 2 | Tests present and green? (`pytest` / `npm test` / `go test`) | Test files or test config detected |
-| 3 | CI configured and syntactically correct? | `.github/workflows/` or `.gitlab-ci.yml` exists |
-| 4 | No hardcoded secrets? (`grep -rE "(password|api_key|token|secret)\s*="`) | Always |
-| 5 | Dependencies complete? (`requirements.txt` ↔ imports, `package.json` ↔ requires) | Dependency file exists |
-| 6 | Dockerfile functional? (`docker build` succeeds or Dockerfile syntax valid) | Dockerfile exists |
-| 7 | `.gitignore` sensible? (no secrets, build artifacts excluded) | `.gitignore` exists |
-| 8 | License present? | Always |
-
-### Eval Scoring
-
-```
-Pass Rate = (Passing Evals / Total Applicable Evals) × 100
-```
-
-Evals that don't apply (e.g. "Dockerfile functional?" when no Dockerfile exists) are **excluded from the total**, not counted as passes.
-
-### At the End
-- `--dry-run`: All proposed changes → `results/[target]-proposed/` directory
-- `--live`: Changes already applied, backups in `results/backups/`
-- report.sh `--final`
-- Optionally: `results/[target]-project-details.md` with per-file findings (NOT in TSV!)
+| `--dry-run` (default) | Only TSV + proposed files |
+| `--live` | Target overwritten, auto-backup → `results/backups/` |
+| `--resume` | Continue from last TSV row |
 
 ---
 
@@ -463,95 +332,69 @@ Evals that don't apply (e.g. "Dockerfile functional?" when no Dockerfile exists)
 
 ```
 autoforge/
-├── SKILL.md                    ← This file
-├── results/
-│   ├── [target]-results.tsv    ← TSV logs
-│   ├── [target]-proposed.md    ← Proposed improvement (prompt/audit)
-│   ├── [target]-proposed/      ← Proposed repo changes (project mode)
-│   │   ├── README.md
-│   │   ├── Dockerfile
-│   │   └── ...
-│   ├── [target]-v1.md          ← Deep audit final version
-│   ├── [target]-audit-details.md ← Audit details (audit mode only)
-│   ├── [target]-project-details.md ← Project details (project mode only)
-│   └── backups/                ← Auto-backups (--live)
-│       ├── [file].bak          ← Single file backups (prompt/code/audit)
-│       └── [target]-backup/    ← Full directory backup (project mode)
+├── SKILL.md                     ← This file
 ├── scripts/
-│   ├── report.sh               ← Channel reporting
-│   └── visualize.py            ← PNG chart (optional)
+│   ├── report.sh                ← Channel reporting (dashboard, trends, JSON)
+│   ├── summary.sh               ← Summary report generator
+│   └── visualize.py             ← PNG charts (trends, multi-run comparison)
 ├── references/
-│   ├── eval-examples.md        ← Pre-built evals
-│   └── ml-mode.md              ← ML training guide
-└── examples/
-    ├── demo-results.tsv        ← Demo data
-    └── example-config.json     ← Example configuration
+│   ├── eval-examples.md         ← Pre-built evals by category
+│   └── ml-mode.md               ← ML training guide
+├── examples/
+│   └── demo-config.json         ← Example configurations
+└── results/                     ← Generated during runs
 ```
 
 ---
 
-## Examples (task descriptions, NOT CLI commands)
-
-AutoForge is not a CLI tool — it's a **skill prompt** for the agent:
+## Examples
 
 ```
-# Optimize a prompt
-"Start autoforge mode: prompt for the coding-agent skill.
- Evals: PTY correct? Workspace protected? Clearly structured?"
+# Optimize a prompt/skill
+"Start autoforge mode: prompt for coding-agent SKILL.md"
 
-# Audit a CLI skill (simple)
-"Start autoforge mode: audit for notebooklm-py."
+# Audit a CLI skill
+"Start autoforge mode: audit for notebooklm-py"
 
-# Deep audit with multi-model
+# Deep audit with multi-model validation
 "Start autoforge mode: audit (deep) for subagents docs.
- Optimizer: Opus, Validator: GPT-5
- Extract ground truth from source, validate iteratively."
+ Validators: gpt-5, gemini. regressionThreshold: 3%"
 
 # Optimize code
 "Start autoforge mode: code for backup.sh.
- File: ./backup.sh
- Test: bash backup.sh personal --dry-run
- Evals: exit_code==0, backup file created, < 10s runtime"
+ Test: bash backup.sh personal --dry-run"
 
-# Optimize a whole repository
-"Start autoforge mode: project for ./my-app
- Evals: Tests green? CI correct? No hardcoded secrets? README accurate?"
+# Whole-repo analysis
+"Start autoforge mode: project for ./my-app"
 
-# Project mode with custom focus
-"Start autoforge mode: project for /path/to/api-server
- Focus: Docker + CI pipeline consistency
- Evals: docker build succeeds, CI workflow references correct paths,
-        .env.example covers all env vars used in code"
+# E2E integration testing
+"Start autoforge mode: e2e for report.sh
+ Test: send to Telegram, verify delivery"
 
-# Project mode dry-run (default)
-"Start autoforge mode: project for ./my-tool --dry-run
- Use default evals. Show me what needs fixing."
+# Personal behavior analysis
+"Start autoforge mode: personal
+ Focus: efficiency, proactivity, tool usage"
+
+# With full v2 config
+"Start autoforge mode: e2e for himalaya skill
+ validators: [claude-sonnet, gpt-4.1]
+ convergenceThreshold: 95
+ evalCategories: true
+ maxFindingsLoops: 2"
 ```
-
----
-
-## Eval Examples → Mode Mapping
-
-`references/eval-examples.md` provides ready-to-use Yes/No evals grouped by category. Here's how they map to AutoForge modes:
-
-| eval-examples.md Category | AutoForge Mode | Notes |
-|---------------------------|---------------|-------|
-| Briefing, Email, Calendar, Summary, Proposal | `prompt` | Mental simulation with scenario evals |
-| Python Script, Shell Script, API, Data Pipeline, Build | `code` | Real execution with measurable criteria |
-| CI/CD, Docker, Helm, Kubernetes, Terraform | `code` or `project` | `code` for single files, `project` for cross-file |
-| Code Review, API Documentation | `audit` | Verify docs match reality |
-| Project / Repository, Cross-File Consistency, Security Baseline | `project` | Whole-repo scanning and cross-file checks |
-
-Pick evals from the matching category and paste them into your task prompt as the eval set.
 
 ---
 
 ## Tips
+
 - Always start with `--dry-run`
-- `prompt` = think, `code` = execute, `audit` = test CLI, `project` = optimize repo
-- Simple Audit for clear CLI skills, Deep Audit for complex docs
-- Project mode scans the whole repo — cross-file consistency is the killer feature
-- Multi-Model for Deep Audits: different models cover different blind spots
+- Regression Guard catches "fix one, break another" — trust it
+- Findings loop = knowledge accumulates across iterations
+- Incremental patches > full rewrites — always
+- Multi-model for deep audits: different models cover different blind spots
+- TSV + report.sh + summary.sh are NOT optional — they ARE the user interface
+- `--dashboard` gives velocity/efficiency metrics
+- `--json` for programmatic consumption
 - At >3 discards after all fixes: check for validator noise, declare convergence if justified
-- TSV + report.sh are NOT optional — they are the user interface
 - For ML training: see `references/ml-mode.md`
+- For ready-to-use evals: see `references/eval-examples.md`
